@@ -1,7 +1,9 @@
 package informational_systems.course.controllers;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import informational_systems.course.items.HeroPredictionRequest;
 import informational_systems.course.items.HeroWinRate;
+import informational_systems.course.items.HeroWinRateResponse;
 import informational_systems.course.services.HeroWinRateService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
@@ -25,8 +27,8 @@ public class HeroWinrateController {
 
     // Получить все винрейты героев по позициям
     @GetMapping
-    public List<HeroWinRate> getAllHeroWinrates() {
-        return heroWinrateService.getAllHeroWinRates();
+    public List<HeroWinRateResponse> getAllHeroWinrates() {
+        return heroWinrateService.getAllHeroWinRatesDTO();
     }
 
     // Получить винрейт героя по ID
@@ -50,13 +52,15 @@ public class HeroWinrateController {
         return;
     }
 
-    @GetMapping("/winrates")
-    public void winratesHeroWinrate() {
-        String csvTable = env.getProperty("csv.all-winrates");
+    @GetMapping("/winrates/{patch}")
+    public void winratesHeroWinrate(@PathVariable String patch) {
+        // Формируем путь к CSV файлу в зависимости от патча
+        String csvTable = env.getProperty("csv.character-winrates") + patch + ".csv"; // Путь с учетом патча
         try {
-            heroWinrateService.parseCsvAndSaveHeroWinRates(csvTable);
+            heroWinrateService.parseCsvAndSaveHeroWinRates(csvTable, patch); // Передаем путь и патч
+        } catch (Exception e) {
+            e.printStackTrace(); // Логирование ошибки
         }
-        catch (Exception e){e.printStackTrace();};
         return;
     }
 
@@ -101,12 +105,20 @@ public class HeroWinrateController {
         }
     }
 
-    @PostMapping("/position")
-    public ResponseEntity<String> position(@RequestBody HeroPredictionRequest predictionRequest) {
+    @PostMapping("/position/{team}")
+    public ResponseEntity<String> position(@RequestBody HeroPredictionRequest predictionRequest, @PathVariable int team) {
         try {
             // Формируем команду для Python скрипта с параметрами
-            StringBuilder command = new StringBuilder("python C:\\Users\\Enzolio\\Downloads\\py\\encode.py --position 1 --radiant 1");
-
+            StringBuilder command;
+            if ((team != 1) && (team != 2)){
+                throw new RuntimeException();
+            }
+            if (team == 1) {
+                command = new StringBuilder("python C:\\Users\\Enzolio\\Downloads\\py\\encode.py --position 1 --radiant 1");
+            }
+            else {
+                command = new StringBuilder("python C:\\Users\\Enzolio\\Downloads\\py\\encode.py --position 1 --radiant 0");
+            }
             // Добавляем параметры для Radiant
             for (int i = 0; i < predictionRequest.getRadiantHeroes().size(); i++) {
                 command.append(" --radiantHero").append(i + 1).append(" ").append(predictionRequest.getRadiantHeroes().get(i));
@@ -132,9 +144,18 @@ public class HeroWinrateController {
 
             // Ожидание завершения процесса
             process.waitFor();
+            String result = output.toString().trim();
+            result = result.replaceAll("'", "\""); // Замена одинарных кавычек на двойные (если необходимо)
 
-            // Возвращаем результат
-            return ResponseEntity.ok(output.toString());
+            // Парсинг строки в JSON (с помощью ObjectMapper)
+            ObjectMapper objectMapper = new ObjectMapper();
+            List<List<Object>> responseList = objectMapper.readValue(result, List.class);
+
+            // Возвращаем результат как JSON
+            return ResponseEntity.ok(objectMapper.writeValueAsString(responseList));
+
+            // Возвращаем результат*/
+            //return ResponseEntity.ok(output.toString());
 
         } catch (Exception e) {
             e.printStackTrace();

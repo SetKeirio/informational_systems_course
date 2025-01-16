@@ -2,10 +2,7 @@ package informational_systems.course.services;
 
 import com.opencsv.CSVReader;
 import com.opencsv.exceptions.CsvException;
-import informational_systems.course.items.Hero;
-import informational_systems.course.items.HeroAgainstWinRate;
-import informational_systems.course.items.HeroWinRate;
-import informational_systems.course.items.HeroWithWinRate;
+import informational_systems.course.items.*;
 import informational_systems.course.repository.HeroAgainstWinRateRepository;
 import informational_systems.course.repository.HeroRepository;
 import informational_systems.course.repository.HeroWinRateRepository;
@@ -15,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -75,6 +73,25 @@ public class HeroWinRateService {
         return winRates.stream()
                 .sorted((wr1, wr2) -> Double.compare(wr2.getWinrate(), wr1.getWinrate()))  // Сортировка по убыванию винрейта
                 .collect(Collectors.toList());
+    }
+
+    public List<HeroWinRateResponse> getAllHeroWinRatesDTO() {
+        List<HeroWinRate> heroWinRates = heroWinRateRepository.findAll(); // Получаем все данные о винрейтах
+        List<HeroWinRateResponse> heroWinRateDTOs = new ArrayList<>();
+
+        for (HeroWinRate heroWinRate : heroWinRates) {
+            // Создаем DTO для каждого HeroWinRate
+            HeroWinRateResponse dto = new HeroWinRateResponse(
+                    heroWinRate.getHero().getName(), // Имя героя
+                    heroWinRate.getPosition(),
+                    heroWinRate.getMatches(),
+                    heroWinRate.getWinrate(),
+                    heroWinRate.getPatch()
+            );
+            heroWinRateDTOs.add(dto);
+        }
+
+        return heroWinRateDTOs;
     }
 
     public void parseCsvAndSaveData(String csvFilePath) throws IOException, CsvException {
@@ -196,6 +213,12 @@ public class HeroWinRateService {
 
     private void saveHeroWithWinrate(Hero hero1, Hero hero2, int position1, int position2, float winrate, int matches, int wins, int loses) {
         HeroWithWinRate heroWithWinrate = new HeroWithWinRate();
+        if (winrate > 1){
+            winrate = (float) 0.9;
+        }
+        if (winrate < 0){
+            winrate = (float) 0.1;
+        }
         heroWithWinrate.setHero1(hero1);
         heroWithWinrate.setHero2(hero2);
         heroWithWinrate.setPosition1(position1);
@@ -210,6 +233,12 @@ public class HeroWinRateService {
 
     private void saveHeroAgainstWinrate(Hero hero1, Hero hero2, int position1, int position2, float winrate, int matches, int wins, int loses) {
         HeroAgainstWinRate heroAgainstWinrate = new HeroAgainstWinRate();
+        if (winrate > 1){
+            winrate = (float) 0.9;
+        }
+        if (winrate < 0){
+            winrate = (float) 0.1;
+        }
         heroAgainstWinrate.setHero1(hero1);
         heroAgainstWinrate.setHero2(hero2);
         heroAgainstWinrate.setPosition1(position1);
@@ -218,7 +247,6 @@ public class HeroWinRateService {
         heroAgainstWinrate.setMatches(matches);
         heroAgainstWinrate.setWins(wins);
         heroAgainstWinrate.setLoses(loses);
-
         heroAgainstWinrateRepository.save(heroAgainstWinrate);
     }
 
@@ -227,8 +255,8 @@ public class HeroWinRateService {
         heroWinRateRepository.deleteById(heroId);
     }
 
-    public void parseCsvAndSaveHeroWinRates(String csvFilePath) throws IOException, CsvException {
-        csvFilePath = "C:\\Users\\Enzolio\\Downloads\\py\\csv\\character_winrate_and_huge_eggs_with_pancakes.csv";
+    public void parseCsvAndSaveHeroWinRates(String csvFilePath, String patch) throws IOException, CsvException {
+        // Открываем CSV файл с путем, который был передан в параметре
         CSVReader csvReader = new CSVReader(new FileReader(csvFilePath));
         List<String[]> allData = csvReader.readAll();
         allData.remove(0); // Удаляем заголовок
@@ -243,12 +271,12 @@ public class HeroWinRateService {
                 continue; // Пропускаем, если героя нет в базе
             }
 
-            // Парсим винрейты для каждой позиции
-            saveHeroWinRateForPosition(hero, 1, Float.parseFloat(row[2]), "7.37e");  // Carry
-            saveHeroWinRateForPosition(hero, 2, Float.parseFloat(row[3]), "7.37e");  // Mid
-            saveHeroWinRateForPosition(hero, 3, Float.parseFloat(row[4]), "7.37e");  // OffLane
-            saveHeroWinRateForPosition(hero, 4, Float.parseFloat(row[5]), "7.37e");  // SemiSupport
-            saveHeroWinRateForPosition(hero, 5, Float.parseFloat(row[6]), "7.37e");  // FullSupport
+            // Парсим винрейты для каждой позиции с учетом переданного патча
+            saveHeroWinRateForPosition(hero, 1, Float.parseFloat(row[2]), patch);  // Carry
+            saveHeroWinRateForPosition(hero, 2, Float.parseFloat(row[3]), patch);  // Mid
+            saveHeroWinRateForPosition(hero, 3, Float.parseFloat(row[4]), patch);  // OffLane
+            saveHeroWinRateForPosition(hero, 4, Float.parseFloat(row[5]), patch);  // SemiSupport
+            saveHeroWinRateForPosition(hero, 5, Float.parseFloat(row[6]), patch);  // FullSupport
         }
 
         csvReader.close();
